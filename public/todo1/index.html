@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Todo List</title>
+    <link rel="stylesheet" href="assets/css/base.css" />
+    <link rel="stylesheet" href="assets/css/index.css" />
+  </head>
+  <body>
+    <section class="todoapp">
+      <header class="header">
+        <h1>todos</h1>
+        <input
+          class="new-todo"
+          placeholder="What needs to be done?"
+          autofocus
+        />
+      </header>
+      <!-- This section should be hidden by default and shown when there are todos -->
+      <section class="main">
+        <input class="toggle-all" type="checkbox" />
+        <label for="toggle-all">Mark all as complete</label>
+        <ul class="todo-list" id="todo-list">
+          <!-- These are here just to show the structure of the list items -->
+          <!-- List items should get the class `editing` when editing and `completed` when marked as completed -->
+        </ul>
+      </section>
+      <!-- This footer should hidden by default and shown when there are todos -->
+      <footer class="footer">
+        <!-- This should be `0 items left` by default -->
+        <span class="todo-count"><strong>0</strong> item left</span>
+        <!-- Remove this if you don't implement routing -->
+        <ul class="filters">
+          <li>
+            <a class="selected" href="#/">All</a>
+          </li>
+          <li>
+            <a href="javascript:;" id="active">Active</a>
+          </li>
+          <li>
+            <a href="javascript:;" id="completed">Completed</a>
+          </li>
+        </ul>
+        <!-- Hidden if no completed items are left ↓ -->
+        <button class="clear-completed">Clear completed</button>
+      </footer>
+    </section>
+    <!-- 导入jQuery和template模板文件 -->
+    <script src="../js/jquery.min.js"></script>
+    <script src="../js/template-web.js"></script>
+    <!-- 创建模板引擎 -->
+    <script type="text/html" id="taskTpl">
+      <!-- 循环遍历这个数据把数据展示处来 -->
+      {{each tasks}}
+             <li class="{{$value.completed ? 'completed' : ''}}">
+               <div class="view">
+                 <input class="toggle" type="checkbox" {{$value.completed ? 'checked' : ''}}  />
+                 <label>{{$value.title}}</label>
+                 <button class="destroy" data-id="{{$value._id}}"></button>
+               </div>
+               <input class="edit" value="Create a TodoMVC template" />
+       </li>
+       {{/each}}
+    </script>
+    <script>
+      // 1,展示数据
+      // 首先先定义一个空的数组来接收数据
+      var taskArry = [];
+      var todo_list = document.querySelector("#todo-list");
+      // 向服务器发送ajax请求 展示数据
+      $.ajax({
+        type: "get",
+        url: "/todo/task",
+        success: function (res) {
+          // console.log(res);
+          taskArry = res;
+          render();
+          calcCount();
+        },
+      });
+      function render() {
+        // 然后利用模板引擎的方式把数据现在在页面中
+        var html = template("taskTpl", { tasks: taskArry });
+        todo_list.innerHTML = html;
+      }
+      //  2, 完成添加数据功能
+      // 给input框添加键盘弹起事件
+      $(".new-todo").on("keyup", function (e) {
+        // console.log(111);
+        // 判断按下的是不是回车键
+        if (e.keyCode === 13) {
+          //   console.log("aaa");
+          // 就获取输入框的内容
+          var title = $(this).val().trim();
+          // 然后先服务器发送ajax请求
+          if (title.length > 0) {
+            // 遍历数组
+            let flag = taskArry.some((item) => item.title == title);
+
+            if (flag) {
+              alert("该任务已经存在,请更换其它的任务");
+              $(".new-todo").val(""); //如果任务已经存在就清空复选框的内容
+              return;
+            }
+            // 如果代码能走到这里就说明用户正常输入,就把内容就向服务器发送数据
+            $.ajax({
+              type: "post",
+              url: "/todo/addTask",
+              contentType: "application/json",
+              data: JSON.stringify({
+                title: title,
+              }),
+              // 数据添加成功的回调函数
+              success: function (res) {
+                // console.log(res);
+                taskArry.push(res);
+                render();
+                calcCount();
+              },
+            });
+          }
+          $(".new-todo").val("");
+        }
+      });
+      //   3,删除数据
+      // 通过事件委托原理,给动态生成的数据里面的button绑定点击事件,删除当前的数据
+      $("#todo-list").on("click", ".destroy", function () {
+        // 获取当前要被删除的元素的ID
+        var id = $(this).attr("data-id");
+        // 然后再发送ajax请求,删除数据
+        $.ajax({
+          type: "get",
+          url: "/todo/deleteTask",
+          data: {
+            _id: id,
+          },
+          success: function (res) {
+            console.log(res);
+            // 获取到已删除任务的索引
+            var index = taskArry.findIndex((item) => item._id == id);
+            taskArry.splice(index, 1);
+            render();
+            calcCount();
+          },
+        });
+      });
+      //  4, 更改任务状态
+      $("#todo-list").on("change", ".toggle", function () {
+        // 获取到当然任务的选中状态
+        var status = $(this).is(":checked");
+        console.log(status);
+        // 获取到当前任务的索引号id
+        var id = $(this).siblings("button").attr("data-id");
+        // 发送ajax请求
+        $.ajax({
+          type: "post",
+          url: "/todo/modifyTask",
+          contentType: "application/json",
+          data: JSON.stringify({ _id: id, completed: status }),
+          success: function (res) {
+            console.log(res);
+            // 将任务状态同步到数组中
+            var index = taskArry.find((item) => item._id == id);
+            // 更改任务状态
+            index.completed = res.completed;
+            render();
+            calcCount();
+          },
+        });
+      });
+
+      //   5,修改任务内容
+      // 给label标签添加双击事件,是当前的li处于被编辑状态,并获取当前li的input的值
+      $("#todo-list").on("dblclick", "label", function () {
+        $(this).parent().parent().addClass("editing");
+        // 将当前的任务名称显示在地下input中
+        $(this).parent().siblings("input").val($(this).text());
+        // 当下面的input获取焦点
+        $(this).parent().siblings("input").focus();
+      });
+      //   给类名为edit的文板框添加失去焦点事件,并把里面修改的内容显示在页面
+      $("#todo-list").on("blur", ".edit", function () {
+        // 获取到当前文本里面新修改的内容
+        var title = $(this).val();
+        // 获取到当前文本框的ID
+        var id = $(this).siblings().find("button").attr("data-id");
+        // 发送修改文本内容的ajax请求
+        $.ajax({
+          type: "post",
+          url: "/todo/modifyTask",
+          contentType: "application/json",
+          data: JSON.stringify({ _id: id, title: title }),
+          success: function (res) {
+            console.log(res);
+            // 将当前被修改的内容同步到页面
+            var index = taskArry.find((item) => item._id == id);
+            index.title = res.title;
+            render();
+            calcCount();
+          },
+        });
+      });
+      //6, 封装一个计算为完成任务的数量的函数
+      function calcCount() {
+        // 先声明一个变量来存储结果
+        var count = 0;
+        // 将未完成的任务过滤到一个新的数据
+        var newAry = taskArry.filter((item) => item.completed == false);
+        count = newAry.length;
+        // 最后将未完成的任务数量显示在页面中
+        $("strong").text(count);
+      }
+
+      // 给id名为active的添加点击事件,显示未完成的
+      $("#active").on("click", function () {
+        // 将数据过滤到一个新的数组里
+        let newActive = taskArry.filter((item) => item.completed == false);
+        let html = template("taskTpl", { data: newActive });
+        $(".todo-list").html(html);
+      });
+
+      // 给id名为completed的添加点击事件,显示已经完成的
+      $("#completed").on("click", function () {
+        // 将数据过滤到一个新的数组里
+        let newCompleted = taskArry.filter((item) => item.completed == true);
+        let html = template("taskTpl", { data: newCompleted });
+        $(".todo-list").html(html);
+      });
+    </script>
+  </body>
+</html>

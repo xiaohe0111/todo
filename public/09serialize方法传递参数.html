@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>09serialize方法传递参数</title>
+  </head>
+  <body>
+    <form>
+      用户名:<input type="text" name="username" /> 密码:<input
+        type="password"
+        name="psw"
+      />
+      <input type="button" value="提交" id="btn" />
+    </form>
+    <script src="./js/jquery.min.js"></script>
+    <script>
+      // 给btn添加点击事件
+      $("#btn").on("click", function () {
+        // 获取到输入框表单的内容
+        let data = serializeToObject($("form"));
+        console.log(data);
+        return;
+        $.ajax({
+          type: "post",
+          url: "/user",
+          data: data,
+          success: function (res) {
+            console.log(res);
+          },
+        });
+      });
+      //   定义一个回调函数
+      function serializeToObject(obj) {
+        console.log(111);
+        let object = {};
+        let arr = obj.serializeArray();
+        arr.forEach((item) => {
+          console.log(item);
+          object[item.username] = item.value;
+        });
+        return object;
+      }
+    </script>
+  </body>
+</html>
